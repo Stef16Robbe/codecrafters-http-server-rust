@@ -1,5 +1,13 @@
 use std::collections::HashMap;
 
+/// An HTTP response is made up of three parts, each separated by a CRLF (\r\n):
+///
+/// 1. Status line.
+/// 2. Zero or more headers, each ending with a CRLF.
+/// 3. Optional response body.
+///
+/// For example:
+/// HTTP/1.1 200 OK\r\n\r\n
 #[derive(Debug)]
 pub struct HttpResponse {
     pub version: HttpVersion,
@@ -33,20 +41,33 @@ impl HttpResponse {
 
 impl std::fmt::Display for HttpResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match &self.reason {
-            Some(reason) => write!(
-                f,
-                "{} {} {}\r\n\r\n",
-                self.version, self.status_code as u8, reason
+        let status_line = match &self.reason {
+            Some(reason) => format!(
+                "{} {} {}\r\n",
+                self.version, self.status_code as u16, reason
             ),
-            None => write!(f, "{} {}\r\n\r\n", self.version, self.status_code as u8),
-        }
+            None => format!("{} {}\r\n", self.version, self.status_code as u16),
+        };
+
+        let headers = match &self.headers {
+            // TODO:
+            // fix display for headers
+            Some(headers) => format!("{:?}\r\n", headers),
+            None => "\r\n".into(),
+        };
+
+        let body = match &self.body {
+            Some(body) => format!("{}", body),
+            None => "".into(),
+        };
+
+        write!(f, "{}{}{}", status_line, headers, body)
     }
 }
 
 pub type Reason = Option<String>;
-pub type Headers = HashMap<String, String>;
-pub type Body = String;
+pub type Headers = Option<HashMap<String, String>>;
+pub type Body = Option<String>;
 
 #[derive(Debug)]
 pub enum HttpVersion {

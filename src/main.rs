@@ -1,6 +1,5 @@
 use http_server_starter_rust::types::*;
 use std::{
-    collections::HashMap,
     io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
 };
@@ -17,8 +16,8 @@ fn handle_connection(mut stream: TcpStream) {
         HttpVersion::Http11,
         StatusCode::Ok,
         Some("OK".to_string()),
-        HashMap::new(),
-        String::new(),
+        None,
+        None,
     );
 
     stream.write_all(&response.as_bytes()).unwrap();
