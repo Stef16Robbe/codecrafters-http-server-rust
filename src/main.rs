@@ -12,21 +12,31 @@ fn handle_connection(mut stream: TcpStream) {
         .take_while(|line| !line.is_empty())
         .collect();
 
-    let request = HttpRequest::from(raw_request);
+    let request = HttpRequest::try_from(raw_request);
 
-    let response = match request.target.as_str() {
-        "/" => HttpResponse::ok(None, None),
-        path if path.starts_with("/echo/") => HttpResponse::echo(&request),
-        _ => HttpResponse::not_found(),
+    let response = match request {
+        Ok(req) => match req.target.as_str() {
+            "/" => HttpResponse::ok(None, None),
+            path if path.starts_with("/echo/") => match HttpResponse::echo(&req) {
+                Ok(path) => path,
+                Err(e) => {
+                    println!("error: {}", e);
+                    HttpResponse::bad_request(None, None)
+                }
+            },
+            _ => HttpResponse::not_found(),
+        },
+        Err(e) => {
+            println!("error: {:?}", e);
+            HttpResponse::bad_request(None, None)
+        }
     };
 
     stream.write_all(&response.as_bytes()).unwrap();
 }
 
 // TODO:
-// generalize common responses such as common headers
 // use &str instead of Strings
-// add error handling
 // add doc comments:
 // https://doc.rust-lang.org/reference/comments.html
 // https://doc.rust-lang.org/rustdoc/how-to-write-documentation.html
