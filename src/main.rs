@@ -1,42 +1,8 @@
-use http_server_starter_rust::types::*;
+use http_server_starter_rust::http::*;
 use std::{
-    collections::HashMap,
     io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
 };
-
-fn respond_ok() -> HttpResponse {
-    HttpResponse::new(StatusCode::Ok, Some("OK".to_string()), None, None)
-}
-
-// TODO:
-// generalize common responses
-// such as common headers
-// fix header Display
-// use &str instead of Strings
-// add error handling
-fn respond_echo(request: &HttpRequest) -> HttpResponse {
-    let res_body = request.target.split('/').last().unwrap();
-    let headers = HashMap::from([
-        ("Content-Type".to_string(), "text/plain".to_string()),
-        ("Content-Length".to_string(), res_body.len().to_string()),
-    ]);
-    HttpResponse::new(
-        StatusCode::Ok,
-        Some("OK".to_string()),
-        Some(headers),
-        Some(res_body.to_string()),
-    )
-}
-
-fn respond_notfound() -> HttpResponse {
-    HttpResponse::new(
-        StatusCode::NotFound,
-        Some("Not Found".to_string()),
-        None,
-        None,
-    )
-}
 
 fn handle_connection(mut stream: TcpStream) {
     let buf_reader = BufReader::new(&mut stream);
@@ -49,14 +15,21 @@ fn handle_connection(mut stream: TcpStream) {
     let request = HttpRequest::from(raw_request);
 
     let response = match request.target.as_str() {
-        "/" => respond_ok(),
-        path if path.starts_with("/echo/") => respond_echo(&request),
-        _ => respond_notfound(),
+        "/" => HttpResponse::ok(None, None),
+        path if path.starts_with("/echo/") => HttpResponse::echo(&request),
+        _ => HttpResponse::not_found(),
     };
 
     stream.write_all(&response.as_bytes()).unwrap();
 }
 
+// TODO:
+// generalize common responses such as common headers
+// use &str instead of Strings
+// add error handling
+// add doc comments:
+// https://doc.rust-lang.org/reference/comments.html
+// https://doc.rust-lang.org/rustdoc/how-to-write-documentation.html
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
 
