@@ -5,13 +5,35 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
+fn handle_files(request: &HttpRequest, working_dir: &str) -> HttpResponse {
+    let response = match request.method {
+        HttpMethod::Get => HttpResponse::get_file(request, working_dir),
+        HttpMethod::Post => HttpResponse::post_file(request, working_dir),
+        _ => Ok(HttpResponse::not_found()),
+    };
+
+    match response {
+        Ok(res) => res,
+        Err(err) => match err {
+            HttpRequestError::BadRequest(e) => {
+                println!("error: {:?}", e);
+                HttpResponse::bad_request(None, None)
+            }
+            HttpRequestError::InternalServerError(e) => {
+                println!("error: {:?}", e);
+                HttpResponse::internal_server_error()
+            }
+            HttpRequestError::NotFound(e) => {
+                println!("error: {:?}", e);
+                HttpResponse::not_found()
+            }
+        },
+    }
+}
+
 fn handle_connection(mut stream: TcpStream, working_dir: &str) {
     let buf_reader = BufReader::new(&mut stream);
-    let raw_request: Vec<String> = buf_reader
-        .lines()
-        .map(|result| result.unwrap())
-        .take_while(|line| !line.is_empty())
-        .collect();
+    let raw_request: Vec<String> = buf_reader.lines().map(|result| result.unwrap()).collect();
 
     let request = HttpRequest::try_from(raw_request);
 
@@ -28,29 +50,11 @@ fn handle_connection(mut stream: TcpStream, working_dir: &str) {
             path if path.starts_with("/echo/") => match HttpResponse::echo(&req) {
                 Ok(res) => res,
                 Err(e) => {
-                    println!("error: {}", e);
+                    println!("error: {:?}", e);
                     HttpResponse::bad_request(None, None)
                 }
             },
-            path if path.starts_with("/files/") => {
-                match HttpResponse::get_file(&req, working_dir) {
-                    Ok(res) => res,
-                    Err(err) => match err {
-                        HttpRequestError::BadRequest(e) => {
-                            println!("error: {}", e);
-                            HttpResponse::bad_request(None, None)
-                        }
-                        HttpRequestError::InternalServerError(e) => {
-                            println!("error: {}", e);
-                            HttpResponse::internal_server_error()
-                        }
-                        HttpRequestError::NotFound(e) => {
-                            println!("error: {}", e);
-                            HttpResponse::not_found()
-                        }
-                    },
-                }
-            }
+            path if path.starts_with("/files/") => handle_files(&req, working_dir),
             _ => HttpResponse::not_found(),
         },
         Err(e) => {

@@ -1,6 +1,8 @@
 use anyhow::Context;
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::fs::File;
+use std::io::prelude::*;
 use thiserror::Error;
 
 /// An HTTP response is made up of three parts, each separated by a CRLF (\r\n):
@@ -80,7 +82,7 @@ impl HttpResponse {
         };
 
         // assuming dir ends in '/'
-        let file = std::fs::read_to_string(format!("{}/{}", directory, file_loc));
+        let file = std::fs::read_to_string(format!("{}{}", directory, file_loc));
 
         let file = match file {
             Ok(f) => f,
@@ -105,6 +107,45 @@ impl HttpResponse {
             Some("OK".to_string()),
             Some(headers),
             Some(file),
+        ))
+    }
+
+    pub fn post_file(request: &HttpRequest, directory: &str) -> Result<Self, HttpRequestError> {
+        // assuming file is not in a subdirectory
+        let file_name = request.target.split('/').last();
+
+        let file_name = match file_name {
+            Some(loc) => loc,
+            None => {
+                return Err(HttpRequestError::BadRequest(
+                    "could not extract file name".to_string(),
+                ))
+            }
+        };
+
+        // assuming dir ends in '/'
+        // cannot be found ???
+        let mut file = match File::create(format!("{}{}", directory, file_name)) {
+            Ok(file) => file,
+            Err(e) => {
+                println!("could not create at: {}{}", directory, file_name);
+                return Err(HttpRequestError::InternalServerError(format!(
+                    "could not create file: {e:?}"
+                )));
+            }
+        };
+
+        // fill file with body content
+        // {
+        //     use std::io::Write;
+        //     file.write_all(request.body.unwrap().as_bytes());
+        // }
+
+        Ok(HttpResponse::new(
+            StatusCode::Created,
+            Some("Created".to_string()),
+            None,
+            None,
         ))
     }
 
@@ -200,9 +241,8 @@ pub struct HttpRequest {
 impl TryFrom<Vec<String>> for HttpRequest {
     type Error = HttpRequestError;
 
-    // TODO:
-    // account for body
     fn try_from(data: Vec<String>) -> Result<Self, HttpRequestError> {
+        println!("{data:?}");
         if data.is_empty() {
             return Err(HttpRequestError::BadRequest(
                 "request is malformed".to_string(),
@@ -222,18 +262,21 @@ impl TryFrom<Vec<String>> for HttpRequest {
         let headers: HashMap<_, _> = data
             .iter()
             .skip(1)
+            .take_while(|data| !data.is_empty())
             .filter_map(|s| {
                 s.split_once(": ")
                     .map(|(k, v)| (k.to_string(), v.to_string()))
             })
             .collect();
 
+        let body = data.last().map(|data| data.to_string());
+
         Ok(HttpRequest {
             method,
             target,
             version,
             headers: Some(headers),
-            body: None,
+            body,
         })
     }
 }
@@ -307,6 +350,7 @@ impl std::fmt::Display for HttpVersion {
 #[derive(Debug, Clone, Copy)]
 pub enum StatusCode {
     Ok = 200,
+    Created = 201,
     BadRequest = 400,
     NotFound = 404,
     InternalServerError = 500,
