@@ -35,13 +35,19 @@ fn handle_connection(mut stream: TcpStream, working_dir: &str) {
             path if path.starts_with("/files/") => {
                 match HttpResponse::get_file(&req, working_dir) {
                     Ok(res) => res,
-                    Err(e) => match e {
-                        HttpRequestError::BadRequest(_) => HttpResponse::bad_request(None, None),
-                        HttpRequestError::InternalServerError(_) => {
+                    Err(err) => match err {
+                        HttpRequestError::BadRequest(e) => {
+                            println!("error: {}", e);
+                            HttpResponse::bad_request(None, None)
+                        }
+                        HttpRequestError::InternalServerError(e) => {
+                            println!("error: {}", e);
                             HttpResponse::internal_server_error()
                         }
-                        HttpRequestError::NotFound(_) => HttpResponse::not_found(),
-                        // println!("error: {}", e);
+                        HttpRequestError::NotFound(e) => {
+                            println!("error: {}", e);
+                            HttpResponse::not_found()
+                        }
                     },
                 }
             }
