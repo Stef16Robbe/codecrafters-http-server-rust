@@ -152,6 +152,11 @@ impl TryFrom<Vec<String>> for HttpRequest {
     // TODO:
     // account for body
     fn try_from(data: Vec<String>) -> Result<Self, HttpRequestError> {
+        if data.is_empty() {
+            return Err(HttpRequestError::BadRequest(
+                "request is malformed".to_string(),
+            ));
+        }
         let mut request_line = data[0].split(' ');
         if request_line.clone().count() != 3 {
             return Err(HttpRequestError::BadRequest(
