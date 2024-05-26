@@ -77,6 +77,32 @@ impl HttpResponse {
             Some(res_body.to_string()),
         ))
     }
+
+    pub fn user_agent(request: &HttpRequest) -> Result<HttpResponse, HttpRequestError> {
+        let agent_header = match &request.headers {
+            Some(headers) => match headers.get("User-Agent") {
+                Some(hdr) => hdr,
+                None => {
+                    return Err(HttpRequestError::BadRequest(
+                        "missing user-agent header".to_string(),
+                    ))
+                }
+            },
+            None => return Err(HttpRequestError::BadRequest("missing headers".to_string())),
+        };
+
+        let headers = HashMap::from([
+            ("Content-Type".to_string(), "text/plain".to_string()),
+            ("Content-Length".to_string(), agent_header.len().to_string()),
+        ]);
+
+        Ok(HttpResponse::new(
+            StatusCode::Ok,
+            Some("OK".to_string()),
+            Some(headers),
+            Some(agent_header.to_string()),
+        ))
+    }
 }
 
 impl std::fmt::Display for HttpResponse {
@@ -120,20 +146,19 @@ pub struct HttpRequest {
     pub body: Body,
 }
 
-// ["GET /index.html HTTP/1.1", "Host: localhost:4221", "User-Agent: curl/8.6.0", "Accept: */*"]
 impl TryFrom<Vec<String>> for HttpRequest {
     type Error = HttpRequestError;
 
     // TODO:
-    // add err handling
     // account for body
     fn try_from(data: Vec<String>) -> Result<Self, HttpRequestError> {
-        if data.len() != 2 {
+        let mut request_line = data[0].split(' ');
+        if request_line.clone().count() != 3 {
             return Err(HttpRequestError::BadRequest(
                 "request line is malformed".to_string(),
             ));
         }
-        let mut request_line = data[0].split(' ');
+
         let method = HttpMethod::from(request_line.next().unwrap());
         let target = String::from(request_line.next().unwrap());
         let version = HttpVersion::from(request_line.next().unwrap());
@@ -142,7 +167,7 @@ impl TryFrom<Vec<String>> for HttpRequest {
             .iter()
             .skip(1)
             .filter_map(|s| {
-                s.split_once(' ')
+                s.split_once(": ")
                     .map(|(k, v)| (k.to_string(), v.to_string()))
             })
             .collect();

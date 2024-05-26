@@ -18,9 +18,16 @@ fn handle_connection(mut stream: TcpStream) {
         Ok(req) => match req.target.as_str() {
             "/" => HttpResponse::ok(None, None),
             path if path.starts_with("/echo/") => match HttpResponse::echo(&req) {
-                Ok(path) => path,
+                Ok(res) => res,
                 Err(e) => {
                     println!("error: {}", e);
+                    HttpResponse::bad_request(None, None)
+                }
+            },
+            "/user-agent" => match HttpResponse::user_agent(&req) {
+                Ok(res) => res,
+                Err(e) => {
+                    println!("error: {:?}", e);
                     HttpResponse::bad_request(None, None)
                 }
             },
@@ -40,6 +47,7 @@ fn handle_connection(mut stream: TcpStream) {
 // add doc comments:
 // https://doc.rust-lang.org/reference/comments.html
 // https://doc.rust-lang.org/rustdoc/how-to-write-documentation.html
+// fix nested `match` statements
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
 
