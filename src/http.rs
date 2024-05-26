@@ -57,6 +57,57 @@ impl HttpResponse {
         )
     }
 
+    pub fn internal_server_error() -> HttpResponse {
+        HttpResponse::new(
+            StatusCode::InternalServerError,
+            Some("Internal Server Error".to_string()),
+            None,
+            None,
+        )
+    }
+
+    pub fn get_file(request: &HttpRequest, directory: &str) -> Result<Self, HttpRequestError> {
+        // assuming file is not in a subdirectory
+        let file_loc = request.target.split('/').last();
+
+        let file_loc = match file_loc {
+            Some(loc) => loc,
+            None => {
+                return Err(HttpRequestError::BadRequest(
+                    "could not extract file location".to_string(),
+                ))
+            }
+        };
+
+        // assuming dir ends in '/'
+        let file = std::fs::read_to_string(format!("{}/{}", directory, file_loc));
+
+        let file = match file {
+            Ok(f) => f,
+            Err(_) => {
+                return Err(HttpRequestError::NotFound(format!(
+                    "failed to read file {} in dir {}",
+                    file_loc, directory
+                )))
+            }
+        };
+
+        let headers = HashMap::from([
+            (
+                "Content-Type".to_string(),
+                "application/octet-stream".to_string(),
+            ),
+            ("Content-Length".to_string(), file.len().to_string()),
+        ]);
+
+        Ok(HttpResponse::new(
+            StatusCode::Ok,
+            Some("OK".to_string()),
+            Some(headers),
+            Some(file),
+        ))
+    }
+
     pub fn echo(request: &HttpRequest) -> anyhow::Result<HttpResponse> {
         let res_body = request
             .target
@@ -279,4 +330,6 @@ pub enum HttpRequestError {
     BadRequest(String),
     #[error("internal server error")]
     InternalServerError(String),
+    #[error("not found")]
+    NotFound(String),
 }
