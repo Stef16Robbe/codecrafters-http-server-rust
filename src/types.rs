@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Write;
 
 /// An HTTP response is made up of three parts, each separated by a CRLF (\r\n):
 ///
@@ -44,14 +45,20 @@ impl std::fmt::Display for HttpResponse {
         };
 
         let headers = match &self.headers {
-            // TODO:
-            // fix display for headers
-            Some(headers) => format!("{:?}\r\n", headers),
-            None => "\r\n".into(),
+            Some(headers) => headers
+                .iter()
+                .fold(String::new(), |mut output, (key, value)| {
+                    let _ = write!(output, "{}: {}\r\n", key, value);
+                    output
+                }),
+            None => "".into(),
         };
 
+        // end headers section
+        let headers = format!("{}\r\n", headers);
+
         let body = match &self.body {
-            Some(body) => format!("{}", body),
+            Some(body) => body.to_string(),
             None => "".into(),
         };
 

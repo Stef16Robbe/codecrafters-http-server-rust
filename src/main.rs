@@ -1,8 +1,42 @@
 use http_server_starter_rust::types::*;
 use std::{
+    collections::HashMap,
     io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
 };
+
+fn respond_ok() -> HttpResponse {
+    HttpResponse::new(StatusCode::Ok, Some("OK".to_string()), None, None)
+}
+
+// TODO:
+// generalize common responses
+// such as common headers
+// fix header Display
+// use &str instead of Strings
+// add error handling
+fn respond_echo(request: &HttpRequest) -> HttpResponse {
+    let res_body = request.target.split('/').last().unwrap();
+    let headers = HashMap::from([
+        ("Content-Type".to_string(), "text/plain".to_string()),
+        ("Content-Length".to_string(), res_body.len().to_string()),
+    ]);
+    HttpResponse::new(
+        StatusCode::Ok,
+        Some("OK".to_string()),
+        Some(headers),
+        Some(res_body.to_string()),
+    )
+}
+
+fn respond_notfound() -> HttpResponse {
+    HttpResponse::new(
+        StatusCode::NotFound,
+        Some("Not Found".to_string()),
+        None,
+        None,
+    )
+}
 
 fn handle_connection(mut stream: TcpStream) {
     let buf_reader = BufReader::new(&mut stream);
@@ -12,16 +46,12 @@ fn handle_connection(mut stream: TcpStream) {
         .take_while(|line| !line.is_empty())
         .collect();
 
-    let http_request = HttpRequest::from(raw_request);
+    let request = HttpRequest::from(raw_request);
 
-    let response = match http_request.target.as_str() {
-        "/" => HttpResponse::new(StatusCode::Ok, Some("OK".to_string()), None, None),
-        _ => HttpResponse::new(
-            StatusCode::NotFound,
-            Some("Not Found".to_string()),
-            None,
-            None,
-        ),
+    let response = match request.target.as_str() {
+        "/" => respond_ok(),
+        path if path.starts_with("/echo/") => respond_echo(&request),
+        _ => respond_notfound(),
     };
 
     stream.write_all(&response.as_bytes()).unwrap();
