@@ -1,7 +1,7 @@
 use http_server_starter_rust::http::*;
 use std::{
     env,
-    io::{prelude::*, BufReader},
+    io::prelude::*,
     net::{TcpListener, TcpStream},
 };
 
@@ -32,10 +32,7 @@ fn handle_files(request: &HttpRequest, working_dir: &str) -> HttpResponse {
 }
 
 fn handle_connection(mut stream: TcpStream, working_dir: &str) {
-    let buf_reader = BufReader::new(&mut stream);
-    let raw_request: Vec<String> = buf_reader.lines().map(|result| result.unwrap()).collect();
-
-    let request = HttpRequest::try_from(raw_request);
+    let request = HttpRequest::try_from(&stream);
 
     let response = match request {
         Ok(req) => match req.target.as_str() {
@@ -63,7 +60,7 @@ fn handle_connection(mut stream: TcpStream, working_dir: &str) {
         }
     };
 
-    println!("responding: {:?}", response);
+    println!("responding: {:?}", response.to_string());
     stream.write_all(&response.as_bytes()).unwrap();
 }
 

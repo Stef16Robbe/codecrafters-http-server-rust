@@ -3,6 +3,11 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use std::fs::File;
 use std::path::Path;
+use std::str::FromStr;
+use std::{
+    io::{prelude::*, BufReader},
+    net::TcpStream,
+};
 use thiserror::Error;
 
 /// An HTTP response is made up of three parts, each separated by a CRLF (\r\n):
@@ -189,7 +194,11 @@ impl HttpResponse {
 
         let headers = HashMap::from([
             ("Content-Type".to_string(), "text/plain".to_string()),
-            ("Content-Length".to_string(), agent_header.len().to_string()),
+            (
+                "Content-Length".to_string(),
+                // don't you dare ask why
+                (agent_header.len() - 2).to_string(),
+            ),
         ]);
 
         Ok(HttpResponse::new(
@@ -242,17 +251,54 @@ pub struct HttpRequest {
     pub body: Body,
 }
 
-impl TryFrom<Vec<String>> for HttpRequest {
+impl TryFrom<&TcpStream> for HttpRequest {
     type Error = HttpRequestError;
 
-    fn try_from(data: Vec<String>) -> Result<Self, HttpRequestError> {
-        println!("{data:?}");
-        if data.is_empty() {
-            return Err(HttpRequestError::BadRequest(
-                "request is malformed".to_string(),
-            ));
+    fn try_from(stream: &TcpStream) -> Result<Self, HttpRequestError> {
+        let mut buf_reader = BufReader::new(stream);
+        let mut headers = vec![];
+
+        loop {
+            let mut buf = String::new();
+            let _len: usize = buf_reader.read_line(&mut buf).expect("can't read line");
+
+            // end of headers section
+            if &buf == "\r\n" {
+                break;
+            }
+
+            headers.push(buf);
         }
-        let mut request_line = data[0].split(' ');
+
+        // TODO:
+        // fix this hell.
+        let body: Option<String> = if let Some(content_length_header) =
+            headers.iter().find(|h| h.starts_with("Content-Length: "))
+        {
+            if let Some(content_length) = content_length_header.split(':').nth(1).map(|v| v.trim())
+            {
+                if let Ok(length) = usize::from_str(content_length) {
+                    let mut buffer = vec![0; length];
+                    buf_reader
+                        .read_exact(&mut buffer)
+                        .expect("Content-Length header size does not equal to body size!");
+                    Some(
+                        std::str::from_utf8(&buffer)
+                            .expect("body not valid utf8!")
+                            .to_string(),
+                    )
+                } else {
+                    eprintln!("Invalid Content-Length value");
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let mut request_line = headers[0].split(' ');
         if request_line.clone().count() != 3 {
             return Err(HttpRequestError::BadRequest(
                 "request line is malformed".to_string(),
@@ -263,7 +309,7 @@ impl TryFrom<Vec<String>> for HttpRequest {
         let target = String::from(request_line.next().unwrap());
         let version = HttpVersion::from(request_line.next().unwrap());
 
-        let headers: HashMap<_, _> = data
+        let headers: HashMap<_, _> = headers
             .iter()
             .skip(1)
             .take_while(|data| !data.is_empty())
@@ -272,9 +318,6 @@ impl TryFrom<Vec<String>> for HttpRequest {
                     .map(|(k, v)| (k.to_string(), v.to_string()))
             })
             .collect();
-
-        let body = data.last().map(|data| data.to_string());
-        println!("{body:?}");
 
         Ok(HttpRequest {
             method,
