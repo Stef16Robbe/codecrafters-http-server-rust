@@ -2,7 +2,7 @@ use anyhow::Context;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::fs::File;
-use std::io::prelude::*;
+use std::path::Path;
 use thiserror::Error;
 
 /// An HTTP response is made up of three parts, each separated by a CRLF (\r\n):
@@ -124,8 +124,11 @@ impl HttpResponse {
         };
 
         // assuming dir ends in '/'
-        // cannot be found ???
-        let mut file = match File::create(format!("{}{}", directory, file_name)) {
+        std::fs::create_dir_all(directory).expect("could not create directory");
+        let path = format!("{}{}", directory, file_name);
+        let path = Path::new(&path);
+
+        let mut file = match File::create(path) {
             Ok(file) => file,
             Err(e) => {
                 println!("could not create at: {}{}", directory, file_name);
@@ -136,10 +139,11 @@ impl HttpResponse {
         };
 
         // fill file with body content
-        // {
-        //     use std::io::Write;
-        //     file.write_all(request.body.unwrap().as_bytes());
-        // }
+        {
+            use std::io::Write;
+            file.write_all(request.body.as_ref().unwrap().as_bytes())
+                .expect("couldnt write body to file");
+        }
 
         Ok(HttpResponse::new(
             StatusCode::Created,
@@ -270,6 +274,7 @@ impl TryFrom<Vec<String>> for HttpRequest {
             .collect();
 
         let body = data.last().map(|data| data.to_string());
+        println!("{body:?}");
 
         Ok(HttpRequest {
             method,

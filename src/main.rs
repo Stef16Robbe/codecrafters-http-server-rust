@@ -63,6 +63,7 @@ fn handle_connection(mut stream: TcpStream, working_dir: &str) {
         }
     };
 
+    println!("responding: {:?}", response);
     stream.write_all(&response.as_bytes()).unwrap();
 }
 
